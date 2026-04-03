@@ -1,22 +1,15 @@
 name: Build for iOS
 
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: "tag"
-        required: false
-        default: ""
-        type: string
   workflow_dispatch:
 
 jobs:
-  build-macos-app:
+  build:
     name: Release IOS
     runs-on: macos-26
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -24,37 +17,25 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: pubspec.yaml
+          flutter-version: '3.16.0'
 
-      - name: Set and Extract version
-        shell: pwsh
-        run: lib/scripts/build.ps1
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Apply Patch
-        shell: pwsh
-        run: lib/scripts/patch.ps1 iOS
-        continue-on-error: true
+      - name: Accept Xcode license
+        run: sudo xcodebuild -license accept
 
       - name: Build iOS
         run: |
-          flutter build ios --release --no-codesign --dart-define-from-file=pili_release.json
+          flutter build ios --release --no-codesign
           ln -sf ./build/ios/iphoneos Payload
-          # make AltSign happy...
+          # 给framework做临时空签名，让自签工具可以识别
           find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
-          zip -r9 PiliPlus_ios_${{env.version}}.ipa Payload/Runner.app
-
-      - name: Release
-        if: ${{ github.event.inputs.tag != '' }}
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event.inputs.tag }}
-          name: ${{ github.event.inputs.tag }}
-          files: |
-            PiliPlus_ios_*.ipa
+          zip -r9 Flutter_TVBox_ios.ipa Payload/Runner.app
 
       - name: Upload ios release
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           archive: false
           name: iOS-release
-          path: PiliPlus_ios_*.ipa
+          path: Flutter_TVBox_ios.ipa
