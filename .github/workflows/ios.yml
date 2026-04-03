@@ -5,48 +5,37 @@ on:
 
 jobs:
   build:
+    name: Release IOS
     runs-on: macos-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Setup Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.16.0'
-        channel: 'stable'
-        architecture: ARM64
+      - name: Setup flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.16.0'
 
-    - name: Install dependencies
-      run: flutter pub get
+      - name: Install dependencies
+        run: flutter pub get
 
-    - name: Accept Xcode license
-      run: sudo xcodebuild -license accept
+      - name: Accept Xcode license
+        run: sudo xcodebuild -license accept
 
-    - name: Install Pods
-      run: |
-        cd ios
-        pod install
+      - name: Build iOS
+        run: |
+          flutter build ios --release --no-codesign
+          ln -sf ./build/ios/iphoneos Payload
+          # 给framework做临时空签名，让自签工具可以识别
+          find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
+          zip -r9 Flutter_TVBox_ios.ipa Payload/Runner.app
 
-    - name: Archive iOS without codesign
-      run: |
-        xcodebuild archive \
-          -workspace ios/Runner.xcworkspace \
-          -scheme Runner \
-          -configuration Release \
-          -archivePath build/ios/archive/Runner.xcarchive \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGN_IDENTITY="" \
-          DEVELOPMENT_TEAM=""
-
-    - name: Package IPA
-      run: |
-        xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive \
-          -exportPath build/ios/ipa \
-          -exportOptionsPlist ios/ExportOptions.plist
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: iOS-release
-        path: build/ios/ipa
+      - name: Upload ios release
+        uses: actions/upload-artifact@v4
+        with:
+          archive: false
+          name: iOS-release
+          path: Flutter_TVBox_ios.ipa
