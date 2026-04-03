@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     name: Release IOS
-    runs-on: macos-26
+    runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -16,8 +16,8 @@ jobs:
       - name: Setup flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
           flutter-version: '3.16.0'
+          channel: 'stable'
 
       - name: Install dependencies
         run: flutter pub get
@@ -25,11 +25,21 @@ jobs:
       - name: Accept Xcode license
         run: sudo xcodebuild -license accept
 
-      - name: Build iOS
+      - name: Build iOS with Xcode directly
         run: |
-          flutter build ios --release --no-codesign
+          cd ios
+          pod install
+          xcodebuild build \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+          cd ..
+          mv ios/build/Release-iphoneos build/ios/iphoneos
           ln -sf ./build/ios/iphoneos Payload
-          # 给framework做临时空签名，让自签工具可以识别
           find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
           zip -r9 Flutter_TVBox_ios.ipa Payload/Runner.app
 
